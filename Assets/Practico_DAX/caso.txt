@@ -1,0 +1,122 @@
+Ejercicio viene desde el comienzo, desde obtencion y transf.
+
+((1)) Antes de comenzar
+1- Quitar modo resumen (Σ ) de los campos numéricos
+2- Dar formato DD/MM/YYYY a los campos fecha
+3- Crear una tabla de medidas
+4- Filtrar una planta (la 2), varias líneas de producción (C y D) y varios productos (209523 y 225347) como ejemplo para validar las medidas.
+
+1- Selecciono campo en datos, herramienta de columna no resumir.
+2- Vista de tabla, selecciono columna y luego en Herramientas de columna -> formato y selecciono el adecuado. Lo aplico para calendario "DATE" y también para pruduccion "FECHA" así no se generan problemas.
+3- Creo una tabla de medidas donde voy poniendo todas las medidas. En INICIO > Introd datos.
+4- En vista de informe, FILTROS (izq), "Planta" desde "Maestro de línea" arrastro a "filtro de todas las paginas" y luego selecciono la "Planta 2".  Luego agrego "Linea" desde "Producción" y selecciono "Línea C y D". Luego "Productnr" desde "Producción" y selecciono 209523 y 225347.
+
+((2)) Creacion medidas
+1- Número de productos distintos.
+2- Número de plantas de producción.
+3- Número de líneas de producción.
+4- Unidades totales.
+4- Velocidad media de funcionamiento (formateado a HH:mm).
+5- Número de averías.
+
+1- Creo medida para contar cantidad de productos DISTINTOS
+
+Num Productos = COUNT('Producción'[productnr])
+
+lo cambio a: 
+
+Num Prod Distintos = DISTINCTCOUNT('Producción'[productnr])
+
+2- Num Plantas = DISTINCTCOUNT('Maestro Linea'[Planta])
+3- Num Líneas Prod. = DISTINCTCOUNT('Producción'[Línea])
+(hay una linea en 0 por eso sólo cuenta 1)
+4- Unidades Totales = SUM('Producción'[Cantidad])
+5- Velocidad Media = AVERAGE('Producción'[actualspeed])
+6- 
+Tiempo de Ejecucion = SUM('Producción'[Duracion])
+hay que pasar a HH:MM
+Horas = [Tiempo de Ejecucion (S)] / 3600
+
+redondeo para abajo
+
+Horas = ROUNDDOWN([Tiempo de Ejecucion (S)] / 3600, 0)
+
+calculo minutos
+
+Minutos = (([Tiempo de Ejecucion (S)] / 3600) - ROUNDDOWN(([Tiempo de Ejecucion (S)] / 3600),0))*60
+
+redondeo 
+
+Minutos = ROUNDDOWN((([Tiempo de Ejecucion (S)] / 3600) - ROUNDDOWN(([Tiempo de Ejecucion (S)] / 3600),0))*60,0)
+
+Unifico
+
+Tiempo Ejecución (HH:mm) =
+var HorasCalculadas = [Horas]
+var MinutosCalculados =  [Minutos]
+RETURN
+HorasCalculadas & ":" & MinutosCalculados
+
+7- Num Averías = CALCULATE(COUNT('Producción'[Actividad]), 'Maestro Actividad'[Categoria] = "Averia")
+
+((3)) Medidas Condicionales
+1- Crear un campo que indique  si la producción fue a pleno rendimiento (si ActSpeed= NorSpeed es pleno rendimiento).
+2- Crear un campo que indique el estado de la frecuencia (normal si < 5 o alta si >= 5).
+
+En este caso las crearemos como columnas calculadas sobre tablas ya existentes, que nos van a permitir realizar segmentaciones o filtros con esos valores calculados > Datos tabla "Produccion" y Herr de tabla "nueva columna".
+
+1- Pleno Rendimiento = IF('Producción'[actualspeed] = 'Producción'[normspeed], "SI", "NO")
+
+2- Estado Frecuencia = IF('Producción'[Frecuencia] < 5, "Normal", "Alta")
+
+((4)) Medidas Porcentuales
+
+Utilizaremos medidas o columnas que ya hemos calculado y realizaremos operaciones adicionales para que el resultado sea en formato porcentual.
+
+1- Calcular el % Tiempo que se produce a Pleno Rendimiento.
+2- Calcular el % Tiempo que se trabaja en Frecuencia Alta.
+3- Calcular el % Tiempo que están averiadas las líneas de producción.
+
+1- MedidaEspecífica/MedidaTotal
+
+Tiempo Pleno Rendimiento = CALCULATE(SUM('Producción'[Duracion]), 'Producción'[Pleno Rendimiento] = "SI")
+
+% Tiempo Pleno Rendimiento = 
+VAR TiempoEspecifico = [Tiempo Pleno Rendimiento]
+VAR TiempoTotal = [Tiempo de Ejecucion (S)]
+RETURN
+    TiempoEspecifico/TiempoTotal
+
+2- 
+% Tiempo Frecuencia Alta = 
+VAR TiempoEspecifico = CALCULATE(SUM('Producción'[Duracion]), 'Producción'[Estado Frecuencia] = "Alta")
+VAR TiempoTotal = [Tiempo de Ejecucion (S)]
+RETURN
+    TiempoEspecifico/TiempoTotal
+
+3-
+% Tiempo Averiado = 
+VAR TiempoEspecifico = CALCULATE(SUM('Producción'[Duracion]), 'Maestro Actividad'[Categoria] = "Averia")
+VAR TiempoTotal = [Tiempo de Ejecucion (S)]
+RETURN
+    TiempoEspecifico/TiempoTotal
+
+
+Hemos utilizado la palabra reservada VAR para almacenar los dos valores con los que vamos a operar para calcular los porcentajes en variables, y así hacer más legible la expresión DAX. Y finalmente utilizamos return para que nos "devuelva" el valor calculado entre esas dos variables.
+
+
+((5)) Medidas Comparativas
+Este tipo de medidas son especialmente interesantes para establecer relaciones entre mismos periodos de distintos años o el crecimiento en diferentes periodos temporales (mensual, anual, semestral, etc.)
+
+1- Calcular las Unidades Totales para el mes anterior.
+2- Calcular el % Crecimiento Mes Actual Vs Mes Anterior.
+
+1- 
+Unidades Totales Mes Anterior = CALCULATE(SUM('Producción'[Cantidad]), DATEADD(Calendario[Date], -1, MONTH))
+
+2-
+% Crecimiento (MoM) = ([Unidades Totales] - [Unidades Totales Mes Anterior]) / [Unidades Totales Mes Anterior]
+
+Para el cálculo de estas medidas comparativas nos hemos valido de funciones de inteligencia del tiempo como DATEADD. Suele utilizarse combinada con otras funciones a modo filtro.
+
+
